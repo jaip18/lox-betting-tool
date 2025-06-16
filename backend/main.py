@@ -1,22 +1,16 @@
-# type: ignore
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from database import engine
-from models import Base
+from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
-from fastapi import Depends
-from database import SessionLocal
+from database import SessionLocal, engine
+import crud
+import apis.nba_api_utils
+import apis.odds_api
+from models import NBAPlayer
+import time
+from datetime import datetime, timezone
+
+today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00Z")
 
 app = FastAPI()
-
-# Allow frontend to call backend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 def get_db():
     db = SessionLocal()
@@ -25,13 +19,40 @@ def get_db():
     finally:
         db.close()
 
-@app.get("/api/props/{player_name}")
-def get_props(player_name: str):
-    # Dummy data for now
-    return {
-        "player": player_name,
-        "stat": "rebounds",
-        "line": 8.5,
-        "hit_rate": "9/10",
-        "confidence": "90%"
-    }
+@app.on_event("startup")
+def load_initial_data():
+    print("🚀 Starting data load...")
+
+    db: Session = next(get_db())  # Use your defined DB dependency
+
+    try:
+        players = apis.nba_api_utils.fetch_active_players()
+        print(f"Fetched {len(players)} active players")
+
+        for player in players:
+            try:
+                id = player['id']
+                existing_player = db.query(NBAPlayer).filter_by(player_id=id).first()
+                if existing_player:
+                    time.sleep(5)
+                    player_data = apis.nba_api_utils.fetch_player_info(id)
+                    player_stats = apis.nba_api_utils.fetch_player_stats(id)
+                    crud.update_NBAplayer(db, player_data, player_stats)
+                else:
+                    time.sleep(5)
+                    player_data = apis.nba_api_utils.fetch_player_info(id)
+                    player_stats = apis.nba_api_utils.fetch_player_stats(id)
+                    crud.create_NBAplayer(db, player_data, player_stats)
+
+            except Exception as e:
+                print(f"⚠️ Error processing player {id}: {e}")
+
+    finally:
+        db.close()
+        print("✅ DB session closed after initial load")
+
+
+
+    
+    
+

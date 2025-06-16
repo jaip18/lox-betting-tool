@@ -5,9 +5,9 @@ services:
     image: postgres
     restart: always
     environment:
-      POSTGRES_USER: nbauser
-      POSTGRES_PASSWORD: nbapass
-      POSTGRES_DB: nbabetting
+      POSTGRES_USER: lox_main
+      POSTGRES_PASSWORD: loxlox
+      POSTGRES_DB: lox_database
     ports:
       - "5432:5432"
     volumes:
